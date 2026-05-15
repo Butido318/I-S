@@ -1,160 +1,390 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-TW">
 <head>
-  <base target="_top">
-  <!-- 引入 Bootstrap 讓介面變漂亮 -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>
-    body { background-color: #f4f7f6; padding: 15px; }
-    .card { border-radius: 15px; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; }
-    .header-section { text-align: center; margin-bottom: 20px; }
-    .inbody-locked { background: #dee2e6; border-radius: 10px; padding: 30px; text-align: center; }
-    #inbodyContent { display: none; }
-    #itemImg { max-height: 180px; object-fit: contain; margin-top: 10px; border-radius: 8px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Finance Analysis Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800&display=swap" rel="stylesheet">
+    <style>
+        body { background-color: #F8F7F4; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; font-size: 16px; }
+        .font-mont { font-family: 'Montserrat', sans-serif; }
+        .gold-bg { background: linear-gradient(135deg, #C5A059 0%, #B38E46 100%); }
+        .card-shadow { box-shadow: 0 10px 30px -5px rgba(0,0,0,0.05); }
+        input, select, button { font-size: 16px !important; }
+        .chart-container { height: 220px; position: relative; }
+    </style>
 </head>
-<body>
+<body class="pb-10">
 
-<div class="container" style="max-width: 500px;">
-  <div class="header-section">
-    <h2>💪 我的健身日記</h2>
-  </div>
+<div id="app">
+    <!-- 頂部儀表板 -->
+    <header class="bg-[#121212] text-white px-5 py-8 shadow-xl">
+            <div class="max-w-6xl mx-auto">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h1 class="text-xl font-bold text-[#C5A059]">盈餘分析表</h1>
+                    <p class="text-[10px] font-mont text-stone-500 tracking-widest uppercase">Finance Analysis</p>
+                </div>
+                <input type="month" v-model="dashMonth" @change="refreshCharts" class="bg-stone-800 border border-stone-700 rounded-lg px-2 py-1 text-sm outline-none text-white">
+            </div>
 
-  <!-- InBody 區塊 -->
-  <div class="card p-3">
-    <h5 class="card-title">📊 InBody 儀表板</h5>
-    <div id="lockScreen" class="inbody-locked">
-      <input type="password" id="unlockPwd" class="form-control mb-2" placeholder="請輸入查看密碼">
-      <button class="btn btn-dark w-100" onclick="checkPwd()">展開數據</button>
-    </div>
-    <div id="inbodyContent">
-      <p class="text-center text-muted">數據趨勢加載中...</p>
-      <!-- 未來 Chart.js 放這裡 -->
-      <button class="btn btn-sm btn-outline-secondary w-100" onclick="document.getElementById('lockScreen').style.display='block'; document.getElementById('inbodyContent').style.display='none';">隱藏</button>
-    </div>
-  </div>
 
-  <!-- 運動紀錄區塊 -->
-  <div class="card p-3">
-    <h5 class="card-title">📝 紀錄今日訓練</h5>
+            <!-- 修改：網格改為 6 欄以符合 6 個卡片 -->
+            <div class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-2">
+                <div v-for="(val, key) in dashboardStats" :key="key" class="bg-stone-900 border border-stone-800 p-3 rounded-xl">
+                    <p class="text-[14px] text-stone-500 mb-1">{{ key }}</p>
+                    <p class="text-base font-mont font-bold">${{ val.amount }}</p>
+                    <p class="text-[14px] text-[#C5A059] mt-1">{{ val.percent }}%</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-5 -mt-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- 左側區域：圖表 -->
+            <div class="lg:col-span-7 space-y-6">
+                <div class="bg-white rounded-3xl card-shadow border border-stone-100 overflow-hidden">
+                    <div @click="toggleChart('income')" class="p-5 flex justify-between items-center cursor-pointer active:bg-stone-50">
+                        <h2 class="font-bold text-stone-800 flex items-center">
+                            <span class="w-1 h-4 bg-emerald-500 mr-2"></span> 半年收益趨勢
+                        </h2>
+                        <span class="text-xs text-stone-400">{{ ui.showIncomeChart ? '▲ 收合' : '▼ 展開' }}</span>
+                    </div>
+                    <div v-show="ui.showIncomeChart" class="px-5 pb-5">
+                        <div class="chart-container"><canvas id="incomeChart"></canvas></div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-3xl card-shadow border border-stone-100 overflow-hidden">
+                    <div @click="toggleChart('expense')" class="p-5 flex justify-between items-center cursor-pointer active:bg-stone-50">
+                        <h2 class="font-bold text-stone-800 flex items-center">
+                            <span class="w-1 h-4 bg-orange-400 mr-2"></span> 半年支出趨勢
+                        </h2>
+                        <span class="text-xs text-stone-400">{{ ui.showExpenseChart ? '▲ 收合' : '▼ 展開' }}</span>
+                    </div>
+                    <div v-show="ui.showExpenseChart" class="px-5 pb-5">
+                        <div class="chart-container"><canvas id="expenseChart"></canvas></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右側區域：輸入表單與明細 -->
+            <div class="lg:col-span-5 space-y-6">
+                <div class="bg-white rounded-3xl p-6 card-shadow border border-stone-100">
+                    <h2 class="font-bold text-stone-800 mb-5 text-lg">新增交易紀錄</h2>
+                    <div class="space-y-4">
+                        <label class="block text-sm text-stone-400 ml-1">日期</label>
+                        <input type="date" v-model="form.date" class="w-full bg-stone-50 border border-stone-100 rounded-xl px-4 py-3 outline-none">
+                        
+                        <label class="block text-sm text-stone-400 ml-1">類別組合</label>
+                        <!-- 大類別區塊 -->
+<div class="flex flex-nowrap gap-2 items-center mb-4">
+    <template v-if="!ui.customCat">
+        <select v-model="form.category" @change="onCategoryChange" 
+                class="flex-1 h-[46px] min-w-0 bg-stone-50 border border-stone-100 rounded-xl px-4 py-0 outline-none">
+            <option value="收入">收入</option>
+            <option value="基本開銷">基本開銷</option>
+            <option value="人事費用">人事費用</option>
+            <option value="進貨成本">進貨成本</option>
+            <option value="其他花費">其他花費</option>
+        </select>
+    </template>
+    <input v-else type="text" v-model="form.category" placeholder="輸入新大類別" 
+           class="flex-1 h-[46px] min-w-0 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-0 outline-none">
     
-    <!-- 選單一：部位 -->
-    <div class="mb-3">
-      <label class="form-label">選擇部位</label>
-      <select id="catSelect" class="form-select" onchange="onCategoryChange()">
-        <option value="">載入中...</option>
-      </select>
-      <input type="text" id="newCatInput" class="form-control mt-2" style="display:none;" placeholder="輸入新部位名稱">
-    </div>
+    <!-- 固定 w-16 寬度與不縮減 shrink-0 -->
+    <button @click="ui.customCat = !ui.customCat; form.category=''" 
+            class="w-16 h-[46px] shrink-0 bg-stone-200 rounded-xl text-xs font-bold whitespace-nowrap">
+        {{ ui.customCat ? '選單' : '新增' }}
+    </button>
+</div>
 
-    <!-- 選單二：動作 -->
-    <div class="mb-3">
-      <label class="form-label">選擇項目</label>
-      <select id="itemSelect" class="form-select" onchange="onItemChange()">
-        <option value="">請先選擇部位</option>
-      </select>
-      <input type="text" id="newItemInput" class="form-control mt-2" style="display:none;" placeholder="輸入新動作名稱">
-    </div>
+<!-- 細項區塊 -->
+<div class="flex flex-nowrap gap-2 items-center">
+    <template v-if="!ui.customItem">
+        <!-- 來源說明輸入框 -->
+        <input v-if="form.category === '收入'" type="text" v-model="form.item" placeholder="來源說明" 
+               class="flex-1 h-[46px] min-w-0 bg-stone-50 border border-stone-100 rounded-xl px-4 py-0 outline-none">
+        
+        <!-- 細項下拉選單 -->
+        <select v-else v-model="form.item" 
+                class="flex-1 h-[46px] min-w-0 bg-stone-50 border border-stone-100 rounded-xl px-4 py-0 outline-none">
+            <option value="">請選擇細項</option>
+            <option v-for="opt in menuOptions" :key="opt" :value="opt">{{ opt }}</option>
+        </select>
+    </template>
+    
+    <input v-else type="text" v-model="form.item" placeholder="輸入新細項名稱" 
+           class="flex-1 h-[46px] min-w-0 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-0 outline-none">
+    
+    <!-- 固定 w-16 寬度與不縮減 shrink-0 -->
+    <button @click="ui.customItem = !ui.customItem; form.item=''" 
+            class="w-16 h-[46px] shrink-0 bg-stone-200 rounded-xl text-xs font-bold whitespace-nowrap">
+        {{ ui.customItem ? '選單' : '新增' }}
+    </button>
+</div>
 
-    <!-- 圖片顯示區 -->
-    <div class="text-center mb-3">
-      <img src="https://via.placeholder.com/200x150?text=No+Image" id="itemImg">
-    </div>
+                        
+                        <label class="block text-sm text-stone-400 ml-1">金額</label>
+                        <input type="number" v-model.number="form.amount" placeholder="輸入金額 $" class="w-full bg-stone-100 border-none rounded-xl py-4 px-4 text-2xl font-mont font-bold">
+                        
+                        <button @click="submitForm" :disabled="loading" class="w-full gold-bg text-white py-4 rounded-xl font-bold shadow-lg active:scale-95 disabled:opacity-50 mt-4">
+                            {{ loading ? '資料傳送中...' : '確認儲存' }}
+                        </button>
+                    </div>
+                </div>
 
-    <!-- 數據輸入 -->
-    <div class="row g-2 mb-3">
-      <div class="col-4"><input type="number" id="w" class="form-control" placeholder="KG"></div>
-      <div class="col-4"><input type="number" id="s" class="form-control" placeholder="組數"></div>
-      <div class="col-4"><input type="number" id="r" class="form-control" placeholder="次數"></div>
-    </div>
-
-    <button id="saveBtn" class="btn btn-primary w-100" onclick="submitForm()">儲存紀錄回 Excel</button>
-  </div>
+                <!-- 明細摘要區域 (新增「其他花費」) -->
+                <div class="mt-8">
+                    <div class="mb-6 px-1 border-l-4 border-[#C5A059] pl-3 flex justify-between items-end">
+                        <div>
+                            <h2 class="text-xl font-black text-stone-900">當月明細摘要</h2>
+                            <p class="text-sm text-stone-400 font-mont uppercase">{{ dashMonth }} Details</p>
+                        </div>
+                        <div class="flex gap-2 mb-1">
+                            <button @click="toggleAllDetails(true)" class="text-[10px] bg-stone-100 text-stone-500 px-2 py-1 rounded">全部展開</button>
+                            <button @click="toggleAllDetails(false)" class="text-[10px] bg-stone-100 text-stone-500 px-2 py-1 rounded">全部收合</button>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <!-- 修改：這裡加入 '其他花費' 到迴圈中 -->
+                        <div v-for="cat in ['基本開銷', '人事費用', '進貨成本', '其他花費']" :key="cat" class="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+                            <div @click="ui.details[cat] = !ui.details[cat]" class="p-4 flex justify-between items-center cursor-pointer active:bg-stone-50">
+                                <div class="flex items-center">
+                                    <span class="w-1 h-3 bg-[#C5A059] mr-2"></span>
+                                    <span class="font-bold text-stone-700">{{ cat }}</span>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <span class="text-sm text-[#C5A059] font-mont font-bold">${{ getCategorySubtotal(cat) }}</span>
+                                    <span class="text-[10px] text-stone-300">{{ ui.details[cat] ? '▲' : '▼' }}</span>
+                                </div>
+                            </div>
+                            <div v-show="ui.details[cat]" class="px-4 pb-4 space-y-2 border-t border-stone-50 pt-3">
+                                <div v-for="log in getLogsByCategory(cat)" :key="log.date + log.item" class="flex justify-between items-center py-2 border-b border-stone-50 last:border-0">
+                                    <div class="flex-1 pr-4">
+                                        <p class="text-sm font-medium text-stone-800">{{ log.item }}</p>
+                                        <p class="text-[10px] text-stone-400 font-mont">{{ log.date }}</p>
+                                    </div>
+                                    <p class="font-mont font-bold text-stone-700 text-sm">${{ log.amount.toLocaleString() }}</p>
+                                </div>
+                                <div v-if="getLogsByCategory(cat).length === 0" class="text-center py-4 text-xs text-stone-400">暫無紀錄</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
 </div>
 
 <script>
-  let fullMenuData = {};
+const { createApp, ref, computed, onMounted, nextTick } = Vue;
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxpzAt-Q77D10UiiKC0qcdgD8HqlY0O52nR_DLXkRdrf9LUvzo9iBecJUQ1m3MetIZ3eQ/exec"; 
 
-  // 頁面載入時初始化
-  window.onload = function() {
-    google.script.run.withSuccessHandler(function(data) {
-      fullMenuData = data;
-      const catSelect = document.getElementById('catSelect');
-      catSelect.innerHTML = '<option value="">-- 請選擇 --</option>';
-      for (let cat in data) {
-        catSelect.options.add(new Option(cat, cat));
-      }
-      catSelect.options.add(new Option("+ 新增其他部位", "Other"));
-    }).getMenuSettings();
-  };
+createApp({
+    setup() {
+        const logs = ref([]);
+        const menuConfig = ref({});
+        const loading = ref(false);
+        const ui = ref({
+            showIncomeChart: false, 
+            showExpenseChart: false, 
+            customCat: false,        
+            customItem: false,
+            // 修改：初始詳細狀態加入 其他花費
+            details: { '基本開銷': false, '人事費用': false, '進貨成本': false, '其他花費': false }
+        });
 
-  // 當部位改變時
-  function onCategoryChange() {
-    const cat = document.getElementById('catSelect').value;
-    const itemSelect = document.getElementById('itemSelect');
-    const newCatInput = document.getElementById('newCatInput');
-    
-    newCatInput.style.display = (cat === 'Other') ? 'block' : 'none';
-    itemSelect.innerHTML = '<option value="">-- 選擇動作 --</option>';
+        let charts = { income: null, expense: null };
 
-    if (cat && cat !== 'Other') {
-      fullMenuData[cat].forEach(obj => {
-        itemSelect.options.add(new Option(obj.name, obj.name));
-      });
+        const getMonthStr = (offset = 0, baseDate = new Date()) => {
+            const d = new Date(baseDate.getFullYear(), baseDate.getMonth() + offset, 1);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        };
+
+        const dashMonth = ref(getMonthStr(-1)); 
+
+        const form = ref({ 
+            date: new Date().toISOString().split('T')[0], 
+            category: '收入', 
+            item: '', 
+            amount: null 
+        });
+
+        const onCategoryChange = () => {
+            form.value.item = '';
+            ui.value.customItem = false;
+        };
+        
+        const menuOptions = computed(() => {
+            const cat = form.value.category;
+            return (menuConfig.value && menuConfig.value[cat]) ? menuConfig.value[cat] : [];
+        });
+
+        const getTrendData = () => {
+            const months = [];
+            const base = new Date(dashMonth.value + "-01");
+            for (let i = -5; i <= 0; i++) months.push(getMonthStr(i, base));
+            
+            const stats = months.map(m => {
+                const mLogs = logs.value.filter(l => l.date.startsWith(m));
+                const inc = mLogs.filter(l => l.category === "收入").reduce((s, c) => s + c.amount, 0);
+                const exp = mLogs.filter(l => l.category !== "收入").reduce((s, c) => s + c.amount, 0);
+                const baseVal = mLogs.filter(l => l.category === "基本開銷").reduce((s, c) => s + c.amount, 0);
+                const persVal = mLogs.filter(l => l.category === "人事費用").reduce((s, c) => s + c.amount, 0);
+                const prodVal = mLogs.filter(l => l.category === "進貨成本").reduce((s, c) => s + c.amount, 0);
+                return { 
+                    month: m.split('-')[1] + '月', 
+                    income: inc, base: baseVal, pers: persVal, prod: prodVal, 
+                    surplus: inc - exp 
+                };
+            });
+            return { labels: stats.map(s => s.month), stats };
+        };
+
+        const drawIncome = (data) => {
+            const ctx = document.getElementById('incomeChart');
+            if(!ctx) return;
+            if(charts.income) charts.income.destroy();
+            charts.income = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.labels,
+                    datasets: [
+                        { label: '收入', data: data.stats.map(s => s.income), borderColor: '#EF4444', tension: 0.3 },
+                        { label: '盈餘', data: data.stats.map(s => s.surplus), borderColor: '#C5A059', borderDash: [5, 5], tension: 0.3 }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        };
+
+        const drawExpense = (data) => {
+            const ctx = document.getElementById('expenseChart');
+            if(!ctx) return;
+            if(charts.expense) charts.expense.destroy();
+            charts.expense = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.labels,
+                    datasets: [
+                        { label: '基本', data: data.stats.map(s => s.base), borderColor: '#60A5FA', tension: 0.3 },
+                        { label: '人事', data: data.stats.map(s => s.pers), borderColor: '#D97706', tension: 0.3 },
+                        { label: '進貨', data: data.stats.map(s => s.prod), borderColor: '#121212', tension: 0.3 }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        };
+
+        const refreshCharts = () => {
+            nextTick(() => {
+                const data = getTrendData();
+                if (ui.value.showIncomeChart) drawIncome(data);
+                if (ui.value.showExpenseChart) drawExpense(data);
+            });
+        };
+
+        const toggleChart = (type) => {
+            if(type === 'income') ui.value.showIncomeChart = !ui.value.showIncomeChart;
+            else ui.value.showExpenseChart = !ui.value.showExpenseChart;
+            refreshCharts();
+        };
+
+        const fetchData = async () => {
+            try {
+                const res = await fetch(GAS_URL);
+                const data = await res.json();
+                logs.value = data.logs || [];
+                menuConfig.value = data.menuConfig || {};
+                refreshCharts();
+            } catch (e) { console.error(e); }
+        };
+
+        // 修改：邏輯捕捉。如果類別不是那三大名單，就歸類為「其他花費」
+        const getLogsByCategory = (cat) => {
+            const standardCats = ['基本開銷', '人事費用', '進貨成本', '收入'];
+            return logs.value.filter(l => {
+                const isCorrectMonth = l.date.startsWith(dashMonth.value);
+                if (!isCorrectMonth) return false;
+                
+                if (cat === '其他花費') {
+                    // 如果類別不屬於 standardCats，則視為其他花費
+                    return !standardCats.includes(l.category);
+                }
+                return l.category === cat;
+            });
+        };
+
+        const getCategorySubtotal = (cat) => getLogsByCategory(cat).reduce((s, c) => s + c.amount, 0).toLocaleString();
+        
+        const dashboardStats = computed(() => {
+            const cur = logs.value.filter(l => l.date.startsWith(dashMonth.value));
+            const s = { "收入": 0, "基本開銷": 0, "人事費用": 0, "進貨成本": 0, "其他花費": 0 };
+            
+            cur.forEach(l => { 
+                if (s.hasOwnProperty(l.category)) {
+                    s[l.category] += l.amount; 
+                } else if (l.category !== "收入") {
+                    // 只要不是收入，且不在清單內，全部算入「其他花費」
+                    s["其他花費"] += l.amount;
+                }
+            });
+
+            const expTotal = s["基本開銷"] + s["人事費用"] + s["進貨成本"] + s["其他花費"];
+            const surplus = s["收入"] - expTotal;
+            const calc = (v) => s["收入"] > 0 ? (v / s["收入"] * 100).toFixed(1) : "0.0";
+
+            return {
+                "收入": { amount: s["收入"].toLocaleString(), percent: "100" },
+                "基本開銷": { amount: s["基本開銷"].toLocaleString(), percent: calc(s["基本開銷"]) },
+                "人事費用": { amount: s["人事費用"].toLocaleString(), percent: calc(s["人事費用"]) },
+                "進貨成本": { amount: s["進貨成本"].toLocaleString(), percent: calc(s["進貨成本"]) },
+                "其他花費": { amount: s["其他花費"].toLocaleString(), percent: calc(s["其他花費"]) },
+                "盈餘": { amount: surplus.toLocaleString(), percent: calc(surplus) }
+            };
+        });
+
+        const submitForm = async () => {
+            if (!form.value.amount || !form.value.item || !form.value.category) return alert("請填寫完整內容");
+            loading.value = true;
+            try {
+                const response = await fetch(GAS_URL, { method: "POST", body: JSON.stringify(form.value) });
+                if (response.ok) {
+                    form.value.amount = null; 
+                    form.value.item = '';
+                    ui.value.customCat = false;
+                    ui.value.customItem = false;
+                    await fetchData();
+                }
+            } catch (e) { alert("儲存失敗"); }
+            finally { loading.value = false; }
+        };
+
+        const toggleAllDetails = (status) => {
+            ui.value.details['基本開銷'] = status;
+            ui.value.details['人事費用'] = status;
+            ui.value.details['進貨成本'] = status;
+            ui.value.details['其他花費'] = status; // 同步加入其他花費
+        };
+
+        onMounted(fetchData);
+
+        return { 
+            form, dashMonth, dashboardStats, menuOptions, onCategoryChange,
+            submitForm, loading, getLogsByCategory, getCategorySubtotal, 
+            ui, toggleAllDetails, toggleChart, refreshCharts 
+        };
     }
-    itemSelect.options.add(new Option("+ 新增其他動作", "Other"));
-    onItemChange(); // 重置圖片
-  }
-
-  // 當動作改變時 (換圖片)
-  function onItemChange() {
-    const cat = document.getElementById('catSelect').value;
-    const item = document.getElementById('itemSelect').value;
-    const newItemInput = document.getElementById('newItemInput');
-    const imgTag = document.getElementById('itemImg');
-
-    newItemInput.style.display = (item === 'Other') ? 'block' : 'none';
-
-    // 尋找圖片 URL
-    if (cat && item && fullMenuData[cat]) {
-      const found = fullMenuData[cat].find(obj => obj.name === item);
-      imgTag.src = (found && found.img) ? found.img : "https://via.placeholder.com/200x150?text=Wait+for+Image";
-    } else {
-      imgTag.src = "https://via.placeholder.com/200x150?text=No+Image";
-    }
-  }
-
-  // 密碼檢查
-  function checkPwd() {
-    const p = document.getElementById('unlockPwd').value;
-    if (p === "1234") { // 你的預設密碼
-      document.getElementById('lockScreen').style.display = 'none';
-      document.getElementById('inbodyContent').style.display = 'block';
-    } else { alert("密碼錯誤！"); }
-  }
-
-  // 提交表單
-  function submitForm() {
-    const btn = document.getElementById('saveBtn');
-    btn.disabled = true;
-    btn.innerText = "儲存中...";
-
-    const payload = {
-      category: document.getElementById('catSelect').value,
-      newCategory: document.getElementById('newCategoryInput') ? document.getElementById('newCategoryInput').value : document.getElementById('newCatInput').value,
-      item: document.getElementById('itemSelect').value,
-      newItem: document.getElementById('newItemInput').value,
-      weight: document.getElementById('w').value,
-      sets: document.getElementById('s').value,
-      reps: document.getElementById('r').value
-    };
-
-    google.script.run.withSuccessHandler(function(res) {
-      alert(res);
-      location.reload(); // 儲存後自動整理，抓取新選單
-    }).saveWorkoutData(payload);
-  }
+}).mount('#app');
 </script>
-
 </body>
 </html>
+
+
