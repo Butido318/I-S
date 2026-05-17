@@ -132,6 +132,11 @@
                         <label class="block text-sm text-stone-400 ml-1">金額</label>
                         <input type="number" v-model.number="form.amount" placeholder="輸入金額 $" class="w-full bg-stone-100 border-none rounded-xl py-4 px-4 text-2xl font-mont font-bold">
                         
+                        <div class="pt-2 border-t border-stone-100">
+                            <label class="block text-sm font-medium text-red-500 mb-1 ml-1">⚠️ 操作驗證密碼</label>
+                            <input type="password" v-model="form.password" placeholder="請輸入安全密碼" class="w-full h-[46px] bg-red-50/50 border border-red-100 rounded-xl px-4 outline-none text-center tracking-widest font-bold">
+                        </div>
+                        
                         <button @click="submitForm" :disabled="loading" class="w-full gold-bg text-white py-4 rounded-xl font-bold shadow-lg active:scale-95 disabled:opacity-50 mt-4">
                             {{ loading ? '資料傳送中...' : '確認儲存' }}
                         </button>
@@ -198,6 +203,9 @@
 const { createApp, ref, computed, onMounted, nextTick } = Vue;
 const GAS_URL = "https://script.google.com/macros/s/AKfycbxpzAt-Q77D10UiiKC0qcdgD8HqlY0O52nR_DLXkRdrf9LUvzo9iBecJUQ1m3MetIZ3eQ/exec"; 
 
+// 🔒 在這裡設定你的專屬密碼 (目前預設是 1234)
+const INPUT_PASSWORD = "1234";
+    
 createApp({
     setup() {
         const logs = ref([]);
@@ -225,7 +233,8 @@ createApp({
             date: new Date().toISOString().split('T')[0], 
             category: '收入', 
             item: '', 
-            amount: null 
+            amount: null,
+            password: '' 
         });
 
         const onCategoryChange = () => {
@@ -363,18 +372,41 @@ createApp({
         });
 
         const submitForm = async () => {
+            // 1. 檢查基本欄位是否填寫
             if (!form.value.amount || !form.value.item || !form.value.category) return alert("請填寫完整內容");
+
+            // 2. 🛡️ 密碼驗證邏輯
+            if (form.value.password !== INPUT_PASSWORD) {
+                alert("❌ 密碼錯誤！無法儲存資料。");
+                form.value.password = ''; // 清空輸入的密碼
+                return; // 直接中斷執行
+            }
+            
             loading.value = true;
             try {
-                const response = await fetch(GAS_URL, { method: "POST", body: JSON.stringify(form.value) });
-                if (response.ok) {
-                    form.value.amount = null; 
-                    form.value.item = '';
-                    ui.value.customCat = false;
-                    ui.value.customItem = false;
-                    await fetchData();
-                }
-            } catch (e) { alert("儲存失敗"); }
+    // 為了安全，送出前把密碼屬性拿掉，不傳去試算表後端
+    const { password, ...submitData } = form.value;
+    const response = await fetch(GAS_URL, { method: "POST", body: JSON.stringify(submitData) });
+    
+    // 確保伺服器回傳成功 (對應你原本的 response.ok)
+    if (response.ok) {
+        // 1. 保留你原本的所有重置功能
+        form.value.amount = null; 
+        form.value.item = '';
+        ui.value.customCat = false;
+        ui.value.customItem = false;
+        
+        // 2. 新增：成功後自動清空密碼
+        form.value.password = ''; 
+        
+        alert("✅ 資料儲存成功！");
+        await fetchData(); // 重新整理圖表與數據
+    } else {
+        alert("❌ 儲存失敗");
+    }
+} catch (e) { 
+    alert("儲存失敗); 
+}
             finally { loading.value = false; }
         };
 
