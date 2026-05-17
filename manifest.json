@@ -1,6 +1,6 @@
 {
-  "name": "原木燒肉財務表",
-  "short_name": "原木燒肉",
+  "name": "原木燒肉財務報表",
+  "short_name": "盈餘表",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#ffffff",
