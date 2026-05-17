@@ -1,6 +1,6 @@
 {
-  "name": "我的網頁名稱",
-  "short_name": "網頁名稱",
+  "name": "原木燒肉財務表",
+  "short_name": "原木燒肉",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#ffffff",
